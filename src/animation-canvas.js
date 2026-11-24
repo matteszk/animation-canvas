@@ -29,7 +29,7 @@
  * @property {number} time    Milliseconds the animation has been playing (excludes pauses).
  * @property {number} delta   Milliseconds since the previous frame (capped, see maxDelta).
  * @property {{x:number,y:number,inside:boolean}} pointer  Pointer position in CSS pixels.
- * @property {HTMLImageElement[]} images  Preloaded images, in the order given.
+ * @property {(HTMLImageElement|null)[]} images  Preloaded images, in the order given.
  * @property {boolean} animated  False when drawing a single still frame (reduced motion).
  * @property {AnimationCanvas} anim  The instance itself.
  */
@@ -225,10 +225,13 @@ export class AnimationCanvas {
 }
 
 function loadImage(src) {
-	return new Promise((resolve, reject) => {
+	return new Promise((resolve) => {
 		const img = new Image();
 		img.onload = () => resolve(img);
-		img.onerror = () => reject(new Error(`AnimationCanvas: could not load ${src}`));
+		img.onerror = () => {
+			console.warn(`AnimationCanvas: could not load ${src}`);
+			resolve(null);
+		};
 		img.src = src;
 	});
 }

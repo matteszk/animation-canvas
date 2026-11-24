@@ -60,7 +60,7 @@ Every callback receives the same `frame` object:
 | `time` | Milliseconds spent playing (pauses don't count) |
 | `delta` | Milliseconds since the previous frame |
 | `pointer` | `{ x, y, inside }` in CSS pixels, when `pointer: true` |
-| `images` | Preloaded images, in the order given |
+| `images` | Preloaded images, in the order given (`null` for any that failed to load) |
 | `animated` | `false` when drawing a still frame for reduced motion |
 | `anim` | The instance |
 
