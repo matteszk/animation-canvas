@@ -48,6 +48,7 @@ new AnimationCanvas(canvasOrSelector, {
   animate: 'auto',        // 'auto' follows prefers-reduced-motion; true or false to force
   maxPixelRatio: 2,       // cap devicePixelRatio to limit work on very dense screens
   maxDelta: 100,          // cap delta (ms) so a long pause doesn't make things jump
+  rootMargin: '100px',    // start running this far before the canvas scrolls into view
 });
 ```
 

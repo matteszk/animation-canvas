@@ -45,6 +45,7 @@
  * @property {boolean|'auto'} [animate='auto']        'auto' follows prefers-reduced-motion.
  * @property {number} [maxPixelRatio=2]               Cap on devicePixelRatio, to limit work on dense screens.
  * @property {number} [maxDelta=100]                  Cap on delta, so a long pause doesn't make things jump.
+ * @property {string} [rootMargin='100px']            How far outside the viewport to start running, as a CSS margin.
  */
 
 export class AnimationCanvas {
@@ -67,6 +68,7 @@ export class AnimationCanvas {
 			animate: 'auto',
 			maxPixelRatio: 2,
 			maxDelta: 100,
+			rootMargin: '100px',
 			images: [],
 			...options,
 		};
@@ -136,7 +138,7 @@ export class AnimationCanvas {
 		this._visibilityObserver = new IntersectionObserver(([entry]) => {
 			this._visible = entry.isIntersecting;
 			this._update();
-		});
+		}, { rootMargin: this.options.rootMargin });
 		this._visibilityObserver.observe(this.canvas);
 
 		// And only while the tab is visible.
