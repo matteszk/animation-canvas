@@ -28,7 +28,7 @@
  * @property {number} height  Height in CSS pixels.
  * @property {number} time    Milliseconds the animation has been playing (excludes pauses).
  * @property {number} delta   Milliseconds since the previous frame (capped, see maxDelta).
- * @property {{x:number,y:number,inside:boolean}} pointer  Pointer position in CSS pixels.
+ * @property {{x:number,y:number,nx:number,ny:number,inside:boolean}} pointer  Pointer position: x/y in CSS pixels, nx/ny from -1 to 1 with 0 at the center.
  * @property {(HTMLImageElement|null)[]} images  Preloaded images, in the order given.
  * @property {boolean} animated  False when drawing a single still frame (reduced motion).
  * @property {AnimationCanvas} anim  The instance itself.
@@ -76,7 +76,7 @@ export class AnimationCanvas {
 		this.ctx = this.canvas.getContext('2d');
 		this.width = 0;
 		this.height = 0;
-		this.pointer = { x: 0, y: 0, inside: false };
+		this.pointer = { x: 0, y: 0, inside: false, nx: 0, ny: 0 };
 		this.images = [];
 
 		this.playing = false; // the user's intent: play() / pause()
@@ -165,6 +165,9 @@ export class AnimationCanvas {
 				this.pointer.x = e.clientX - rect.left;
 				this.pointer.y = e.clientY - rect.top;
 				this.pointer.inside = true;
+				// Normalized: -1 at the left/top edge, 0 at the center, 1 at the right/bottom edge.
+				this.pointer.nx = (this.pointer.x / rect.width) * 2 - 1;
+				this.pointer.ny = (this.pointer.y / rect.height) * 2 - 1;
 				// A still frame should still respond to the pointer.
 				if (!this.animated) this.render();
 			};
