@@ -85,8 +85,8 @@ export class AnimationCanvas {
 		this._last = 0;
 		this._raf = 0;
 
-		const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-		this.animated = this.options.animate === 'auto' ? !motionQuery.matches : Boolean(this.options.animate);
+		this._motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+		this.animated = this.options.animate === 'auto' ? !this._motionQuery.matches : Boolean(this.options.animate);
 
 		this._tick = this._tick.bind(this);
 		this._bind();
@@ -122,6 +122,7 @@ export class AnimationCanvas {
 		document.removeEventListener('visibilitychange', this._onPageVisibility);
 		this.canvas.removeEventListener('pointermove', this._onPointer);
 		this.canvas.removeEventListener('pointerleave', this._onPointerLeave);
+		this._motionQuery.removeEventListener('change', this._onMotionChange);
 	}
 
 	// ---------- internals ----------
@@ -144,6 +145,17 @@ export class AnimationCanvas {
 			this._update();
 		};
 		document.addEventListener('visibilitychange', this._onPageVisibility);
+
+		// Follow reduced-motion changes live, unless `animate` was forced.
+		if (this.options.animate === 'auto') {
+			this._onMotionChange = (e) => {
+				this.animated = !e.matches;
+				this._update();
+				// Switching to a still frame: repaint so it isn't left mid-motion.
+				if (!this.animated) this.render();
+			};
+			this._motionQuery.addEventListener('change', this._onMotionChange);
+		}
 
 		if (this.options.pointer) {
 			this._onPointer = (e) => {
