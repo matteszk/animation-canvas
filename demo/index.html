@@ -49,6 +49,13 @@
   </section>
 
   <section class="demo">
+    <h2>Conveyor belt</h2>
+    <p>A belt of connected apps steps along every two seconds with a strong ease-in-out. As each one reaches the connector, the hub card above bumps and glows. Click to change the color theme. Every motion comes from the animation clock, with no timers.</p>
+    <canvas id="belt" aria-label="A belt of app cards stepping past a central hub card that bumps as each one connects"></canvas>
+    <div class="controls"><button data-toggle="belt">Pause</button></div>
+  </section>
+
+  <section class="demo">
     <h2>Orbits</h2>
     <p>Planets drawn from elapsed <code>time</code>. With reduced motion turned on, this draws one still frame instead.</p>
     <canvas id="orbits" aria-label="Planets orbiting a sun"></canvas>
@@ -262,6 +269,131 @@ const anims = {};
 		spin = Math.min(spin + 0.0012, 0.003);
 		pulseAt = now;
 		nextPulse = now + 3000 + Math.random() * 3000;
+	});
+}
+
+// --- Conveyor belt -----------------------------------------------------
+{
+	const STEP = 2000; // ms between moves
+	const MOVE = 1200; // ms each move takes
+	const THEMES = ['#e7b84a', '#7fc4b8', '#e06a4e', '#a78bfa'];
+	let theme = 0;
+
+	// Six app icons, drawn around (0, 0) at roughly 24px.
+	const icons = [
+		(c) => { // plug
+			c.beginPath(); c.moveTo(-4, -11); c.lineTo(-4, -5); c.moveTo(4, -11); c.lineTo(4, -5); c.stroke();
+			c.beginPath(); c.moveTo(-8, -5); c.lineTo(8, -5); c.lineTo(8, 1); c.quadraticCurveTo(8, 6, 0, 6); c.quadraticCurveTo(-8, 6, -8, 1); c.closePath(); c.stroke();
+			c.beginPath(); c.moveTo(0, 6); c.lineTo(0, 11); c.stroke();
+		},
+		(c) => { // mail
+			c.beginPath(); c.roundRect(-11, -8, 22, 16, 3); c.stroke();
+			c.beginPath(); c.moveTo(-10, -6); c.lineTo(0, 2); c.lineTo(10, -6); c.stroke();
+		},
+		(c) => { // calendar
+			c.beginPath(); c.roundRect(-10, -8, 20, 18, 3); c.stroke();
+			c.beginPath(); c.moveTo(-10, -2); c.lineTo(10, -2); c.moveTo(-5, -11); c.lineTo(-5, -6); c.moveTo(5, -11); c.lineTo(5, -6); c.stroke();
+			[[-5, 3], [0, 3], [5, 3]].forEach(([x, y]) => { c.beginPath(); c.arc(x, y, 1.3, 0, Math.PI * 2); c.fill(); });
+		},
+		(c) => { // cart
+			c.beginPath(); c.moveTo(-12, -9); c.lineTo(-8, -9); c.lineTo(-5, 4); c.lineTo(8, 4); c.lineTo(11, -5); c.lineTo(-7, -5); c.stroke();
+			[[-3, 9], [7, 9]].forEach(([x, y]) => { c.beginPath(); c.arc(x, y, 2, 0, Math.PI * 2); c.stroke(); });
+		},
+		(c) => { // user
+			c.beginPath(); c.arc(0, -5, 5, 0, Math.PI * 2); c.stroke();
+			c.beginPath(); c.moveTo(-10, 11); c.quadraticCurveTo(-10, 2, 0, 2); c.quadraticCurveTo(10, 2, 10, 11); c.stroke();
+		},
+		(c) => { // document
+			c.beginPath(); c.moveTo(-8, -11); c.lineTo(4, -11); c.lineTo(9, -6); c.lineTo(9, 11); c.lineTo(-8, 11); c.closePath(); c.stroke();
+			c.beginPath(); c.moveTo(-4, -2); c.lineTo(5, -2); c.moveTo(-4, 3); c.lineTo(5, 3); c.moveTo(-4, 8); c.lineTo(2, 8); c.stroke();
+		},
+	];
+	const CARDS = 12; // icons repeat around the belt
+
+	// easeInOutQuart: slow start, fast middle, gentle landing.
+	const ease = (t) => (t < 0.5 ? 8 * t ** 4 : 1 - (-2 * t + 2) ** 4 / 2);
+
+	const card = (ctx, x, y, w, h, stroke, glow = 0) => {
+		ctx.save();
+		if (glow) { ctx.shadowColor = stroke; ctx.shadowBlur = glow; }
+		ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w, h, 12);
+		ctx.fillStyle = '#1e1b26'; ctx.fill();
+		ctx.restore();
+		ctx.strokeStyle = stroke; ctx.lineWidth = 1.5;
+		ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w, h, 12); ctx.stroke();
+	};
+
+	const icon = (ctx, draw, x, y, scale, color) => {
+		ctx.save();
+		ctx.translate(x, y); ctx.scale(scale, scale);
+		ctx.strokeStyle = ctx.fillStyle = color; ctx.lineWidth = 1.6; ctx.lineJoin = ctx.lineCap = 'round';
+		draw(ctx);
+		ctx.restore();
+	};
+
+	anims.belt = new AnimationCanvas('#belt', {
+		draw({ ctx, width, height, time, animated }) {
+			const color = THEMES[theme];
+			const size = Math.min(84, width / 7);
+			const pitch = size * 1.35;
+			const beltY = height * 0.7;
+			const cx = width / 2;
+
+			// Which step are we on, and how far through its move?
+			const t = animated ? time : 0;
+			const step = Math.floor(t / STEP);
+			const into = t - step * STEP;
+			const progress = ease(Math.min(1, into / MOVE));
+			const offset = (step + progress) * pitch;
+
+			ctx.clearRect(0, 0, width, height);
+
+			// The belt track.
+			ctx.strokeStyle = '#332e3d'; ctx.lineWidth = 2;
+			ctx.beginPath(); ctx.moveTo(0, beltY + size * 0.62); ctx.lineTo(width, beltY + size * 0.62); ctx.stroke();
+
+			// Cards wrap around so the belt never runs out.
+			const loop = CARDS * pitch;
+			for (let i = 0; i < CARDS; i++) {
+				let x = (((i * pitch - offset) % loop) + loop) % loop - loop / 2 + cx;
+				// Fade cards near the edges.
+				ctx.globalAlpha = Math.max(0, Math.min(1, (width / 2 - Math.abs(x - cx)) / (size * 1.5)));
+				card(ctx, x, beltY, size, size, '#4a4356');
+				icon(ctx, icons[i % icons.length], x, beltY, size / 48, '#f1ece2');
+			}
+			ctx.globalAlpha = 1;
+
+			// The hub bumps up and glows just as a card lands under it.
+			const landed = into - MOVE;
+			const bump = landed > 0 && landed < 400 ? Math.sin((landed / 400) * Math.PI) : 0;
+			const hubY = height * 0.27 - bump * 12;
+			const hub = size * 1.15;
+
+			// Connector from hub to the slot on the belt.
+			ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.setLineDash([4, 5]);
+			ctx.beginPath(); ctx.moveTo(cx, hubY + hub / 2); ctx.lineTo(cx, beltY - size / 2 - 6); ctx.stroke();
+			ctx.setLineDash([]);
+			ctx.strokeStyle = color; ctx.lineWidth = 2;
+			ctx.beginPath(); ctx.roundRect(cx - size / 2 - 6, beltY - size / 2 - 6, size + 12, size + 12, 16); ctx.stroke();
+
+			card(ctx, cx, hubY, hub, hub, color, 18 + bump * 40);
+			// Hub mark: a four-point spark in the theme color.
+			const k = hub * 0.28;
+			ctx.fillStyle = color;
+			ctx.beginPath();
+			ctx.moveTo(cx, hubY - k);
+			ctx.quadraticCurveTo(cx, hubY, cx + k, hubY);
+			ctx.quadraticCurveTo(cx, hubY, cx, hubY + k);
+			ctx.quadraticCurveTo(cx, hubY, cx - k, hubY);
+			ctx.quadraticCurveTo(cx, hubY, cx, hubY - k);
+			ctx.fill();
+		},
+	});
+
+	// Click: switch theme, and repaint right away if it's showing a still frame.
+	anims.belt.canvas.addEventListener('pointerdown', () => {
+		theme = (theme + 1) % THEMES.length;
+		if (!anims.belt.animated) anims.belt.render();
 	});
 }
 
