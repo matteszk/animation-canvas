@@ -42,6 +42,13 @@
   </section>
 
   <section class="demo">
+    <h2>Hub and spokes</h2>
+    <p>Rings ripple out from a central hub every few seconds while connected services slowly orbit. Click to send a pulse and spin it up. The icons are drawn with canvas paths, so there are no images to load.</p>
+    <canvas id="hub" aria-label="A central hub with rings pulsing outward and six connected service icons orbiting it"></canvas>
+    <div class="controls"><button data-toggle="hub">Pause</button></div>
+  </section>
+
+  <section class="demo">
     <h2>Orbits</h2>
     <p>Planets drawn from elapsed <code>time</code>. With reduced motion turned on, this draws one still frame instead.</p>
     <canvas id="orbits" aria-label="Planets orbiting a sun"></canvas>
@@ -124,6 +131,137 @@ const anims = {};
 			}
 			ctx.globalAlpha = 1;
 		},
+	});
+}
+
+// --- Hub and spokes -----------------------------------------------------
+{
+	const RING_GAP = 20;
+	const BASE_SPIN = 0.00004; // radians per ms
+	let rings = 0;
+	let spin = BASE_SPIN;
+	let angle = 0;
+	let pulseAt = -Infinity; // time the current pulse started
+	let nextPulse = 2000;
+	let now = 0; // latest frame time, so clicks can start a pulse "now"
+
+	// Six service icons, each drawn around (0, 0) at roughly 24px.
+	const icons = [
+		(c) => { // database
+			c.beginPath(); c.ellipse(0, -8, 10, 4, 0, 0, Math.PI * 2); c.stroke();
+			c.beginPath(); c.moveTo(-10, -8); c.lineTo(-10, 8); c.ellipse(0, 8, 10, 4, 0, Math.PI, 0, true); c.lineTo(10, -8); c.stroke();
+			c.beginPath(); c.ellipse(0, 0, 10, 4, 0, 0, Math.PI); c.stroke();
+		},
+		(c) => { // cloud
+			c.beginPath();
+			c.arc(-6, 2, 6, Math.PI * 0.5, Math.PI * 1.5);
+			c.arc(0, -4, 8, Math.PI, Math.PI * 2);
+			c.arc(7, 2, 6, Math.PI * 1.5, Math.PI * 0.5);
+			c.closePath(); c.stroke();
+		},
+		(c) => { // gear
+			c.beginPath();
+			for (let i = 0; i < 16; i++) {
+				const r = i % 2 ? 7 : 11, a = (i / 16) * Math.PI * 2;
+				c.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+			}
+			c.closePath(); c.stroke();
+			c.beginPath(); c.arc(0, 0, 3.5, 0, Math.PI * 2); c.stroke();
+		},
+		(c) => { // chat bubble
+			c.beginPath(); c.roundRect(-11, -9, 22, 15, 4); c.stroke();
+			c.beginPath(); c.moveTo(-4, 6); c.lineTo(-7, 11); c.lineTo(1, 6); c.stroke();
+		},
+		(c) => { // bar chart
+			c.beginPath(); c.moveTo(-11, 10); c.lineTo(11, 10); c.stroke();
+			[[-8, 4], [-2, -4], [4, -9]].forEach(([x, top]) => c.strokeRect(x, top, 4, 10 - top));
+		},
+		(c) => { // lock
+			c.beginPath(); c.roundRect(-9, -2, 18, 13, 3); c.stroke();
+			c.beginPath(); c.arc(0, -3, 6, Math.PI, 0); c.lineTo(6, -2); c.moveTo(-6, -3); c.lineTo(-6, -2); c.stroke();
+			c.beginPath(); c.arc(0, 4, 1.6, 0, Math.PI * 2); c.fill();
+		},
+	];
+
+	const sizes = ({ width, height }) => {
+		const short = Math.min(width, height);
+		return { hub: Math.max(26, short * 0.1), spoke: short * 0.36, node: Math.max(20, short * 0.075) };
+	};
+
+	const circle = (ctx, x, y, r, stroke) => {
+		ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+		ctx.fillStyle = '#1e1b26'; ctx.fill();
+		ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke();
+	};
+
+	anims.hub = new AnimationCanvas('#hub', {
+		setup({ width, height }) {
+			rings = Math.ceil(Math.hypot(width, height) / 2 / RING_GAP);
+		},
+		resize({ width, height }) {
+			rings = Math.ceil(Math.hypot(width, height) / 2 / RING_GAP);
+		},
+		draw({ ctx, width, height, time, delta, animated }) {
+			const cx = width / 2, cy = height / 2;
+			const s = sizes({ width, height });
+			now = time;
+
+			// Pulse every 3 to 6 seconds.
+			if (animated && time >= nextPulse) {
+				pulseAt = time;
+				nextPulse = time + 3000 + Math.random() * 3000;
+			}
+
+			// Ease the spin back down after a click.
+			spin += (BASE_SPIN - spin) * Math.min(1, delta * 0.002);
+			angle += spin * delta;
+
+			ctx.clearRect(0, 0, width, height);
+
+			// Rings: fainter further out, brighter where the pulse's wavefront is.
+			const front = (time - pulseAt) * 0.35 + s.hub; // px from center
+			for (let i = 1; i <= rings; i++) {
+				const r = s.hub + i * RING_GAP;
+				const base = Math.max(0, 0.5 - i * 0.025);
+				const boost = Math.max(0, 1 - Math.abs(r - front) / 60) * 0.5;
+				ctx.strokeStyle = `rgba(224, 106, 78, ${base + boost})`;
+				ctx.lineWidth = 1;
+				ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+			}
+
+			// Spokes and service nodes.
+			icons.forEach((drawIcon, i) => {
+				const a = angle + (i / icons.length) * Math.PI * 2;
+				const x = cx + Math.cos(a) * s.spoke, y = cy + Math.sin(a) * s.spoke;
+				ctx.strokeStyle = 'rgba(231, 184, 74, 0.6)'; ctx.lineWidth = 1;
+				ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(x, y); ctx.stroke();
+				circle(ctx, x, y, s.node, '#e7b84a');
+				ctx.save();
+				ctx.translate(x, y); ctx.scale(s.node / 24, s.node / 24);
+				ctx.strokeStyle = ctx.fillStyle = '#f1ece2'; ctx.lineWidth = 1.6; ctx.lineJoin = ctx.lineCap = 'round';
+				drawIcon(ctx);
+				ctx.restore();
+			});
+
+			// The hub: a four-point spark.
+			circle(ctx, cx, cy, s.hub, '#e06a4e');
+			ctx.fillStyle = '#e7b84a';
+			ctx.beginPath();
+			const k = s.hub * 0.55;
+			ctx.moveTo(cx, cy - k);
+			ctx.quadraticCurveTo(cx, cy, cx + k, cy);
+			ctx.quadraticCurveTo(cx, cy, cx, cy + k);
+			ctx.quadraticCurveTo(cx, cy, cx - k, cy);
+			ctx.quadraticCurveTo(cx, cy, cx, cy - k);
+			ctx.fill();
+		},
+	});
+
+	// Click: spin up and send a pulse right away.
+	anims.hub.canvas.addEventListener('pointerdown', () => {
+		spin = Math.min(spin + 0.0012, 0.003);
+		pulseAt = now;
+		nextPulse = now + 3000 + Math.random() * 3000;
 	});
 }
 
