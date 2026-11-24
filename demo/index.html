@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AnimationCanvas demos</title>
+<style>
+  :root { --bg:#14121a; --card:#1e1b26; --line:#332e3d; --ink:#f1ece2; --muted:#a79f92; --gold:#e7b84a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 48px 24px 80px; }
+  h1 { font-size: clamp(2rem, 5vw, 3rem); margin: 0 0 8px; }
+  .lead { color: var(--muted); max-width: 40em; margin: 0 0 40px; }
+  a { color: var(--gold); }
+  .demo { margin: 0 0 48px; }
+  .demo h2 { font-size: 1.3rem; margin: 0 0 4px; }
+  .demo p { color: var(--muted); margin: 0 0 14px; }
+  canvas { display: block; width: 100%; height: 360px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); touch-action: none; }
+  .controls { display: flex; gap: 8px; margin-top: 10px; }
+  button { font: inherit; font-size: .9rem; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  button:hover { border-color: var(--gold); }
+  code { font-size: .9em; color: var(--gold); }
+</style>
+</head>
+<body>
+<main>
+  <h1>AnimationCanvas</h1>
+  <p class="lead">A tiny, dependency-free helper for canvas animations: sizing, the frame loop, pausing off-screen, reduced motion, image preloading and pointer tracking. <a href="https://github.com/matteszk/animation-canvas">View on GitHub</a></p>
+
+  <section class="demo">
+    <h2>Warp field</h2>
+    <p>Stars stream out from the center. Move your pointer up or down to change speed. Uses <code>pointer</code> and <code>delta</code>, so it runs at the same speed on any refresh rate.</p>
+    <canvas id="warp" aria-label="Animated star field streaming from the center"></canvas>
+    <div class="controls"><button data-toggle="warp">Pause</button></div>
+  </section>
+
+  <section class="demo">
+    <h2>Dot grid</h2>
+    <p>A grid rebuilt on every <code>resize</code>. Dots near the pointer light up and slowly fade, with a few twinkling on their own.</p>
+    <canvas id="grid" aria-label="A grid of dots that light up near the pointer"></canvas>
+    <div class="controls"><button data-toggle="grid">Pause</button></div>
+  </section>
+
+  <section class="demo">
+    <h2>Orbits</h2>
+    <p>Planets drawn from elapsed <code>time</code>. With reduced motion turned on, this draws one still frame instead.</p>
+    <canvas id="orbits" aria-label="Planets orbiting a sun"></canvas>
+    <div class="controls"><button data-toggle="orbits">Pause</button></div>
+  </section>
+</main>
+
+<script type="module">
+import { AnimationCanvas } from '../src/animation-canvas.js';
+
+const COLORS = ['#e7b84a', '#e06a4e', '#7fc4b8', '#a78bfa', '#f1ece2'];
+const anims = {};
+
+// --- Warp field ---------------------------------------------------------
+{
+	let stars = [];
+	let speed = 1;
+	const spawn = (w, h, anywhere) => {
+		const angle = Math.random() * Math.PI * 2;
+		const dist = anywhere ? Math.random() * Math.max(w, h) / 2 : Math.random() * 20;
+		return { angle, dist, v: 0.02 + Math.random() * 0.06, size: 0.5 + Math.random() * 1.5, color: COLORS[(Math.random() * COLORS.length) | 0] };
+	};
+	anims.warp = new AnimationCanvas('#warp', {
+		pointer: true,
+		setup({ width, height }) {
+			stars = Array.from({ length: 260 }, () => spawn(width, height, true));
+		},
+		draw({ ctx, width, height, delta, pointer }) {
+			// Pointer above center speeds up, below slows down.
+			const target = pointer.inside ? 1 + ((height / 2 - pointer.y) / height) * 6 : 1;
+			speed += (Math.max(0.2, target) - speed) * 0.05;
+
+			ctx.fillStyle = 'rgba(30, 27, 38, 0.35)'; // leave short trails
+			ctx.fillRect(0, 0, width, height);
+			const cx = width / 2, cy = height / 2, max = Math.hypot(cx, cy);
+			for (const s of stars) {
+				s.dist += s.v * delta * speed * (1 + s.dist / 120);
+				if (s.dist > max) Object.assign(s, spawn(width, height, false));
+				const x = cx + Math.cos(s.angle) * s.dist;
+				const y = cy + Math.sin(s.angle) * s.dist;
+				ctx.globalAlpha = Math.min(1, s.dist / 80);
+				ctx.fillStyle = s.color;
+				ctx.beginPath();
+				ctx.arc(x, y, s.size * (1 + s.dist / max), 0, Math.PI * 2);
+				ctx.fill();
+			}
+			ctx.globalAlpha = 1;
+		},
+	});
+}
+
+// --- Dot grid -----------------------------------------------------------
+{
+	const GAP = 22;
+	let dots = [];
+	const build = ({ width, height }) => {
+		dots = [];
+		for (let y = GAP / 2; y < height; y += GAP) {
+			for (let x = GAP / 2; x < width; x += GAP) dots.push({ x, y, glow: 0, color: COLORS[(Math.random() * COLORS.length) | 0] });
+		}
+	};
+	anims.grid = new AnimationCanvas('#grid', {
+		pointer: true,
+		setup: build,
+		resize: build,
+		draw({ ctx, width, height, delta, pointer }) {
+			ctx.clearRect(0, 0, width, height);
+			for (const d of dots) {
+				if (pointer.inside) {
+					const dist = Math.hypot(d.x - pointer.x, d.y - pointer.y);
+					if (dist < 90) d.glow = Math.max(d.glow, 1 - dist / 90);
+				}
+				if (Math.random() < 0.00004 * delta) d.glow = 1; // occasional twinkle
+				d.glow = Math.max(0, d.glow - delta * 0.0008);
+				ctx.globalAlpha = 0.18 + d.glow * 0.82;
+				ctx.fillStyle = d.glow > 0.05 ? d.color : '#a79f92';
+				ctx.beginPath();
+				ctx.arc(d.x, d.y, 1.6 + d.glow * 2.4, 0, Math.PI * 2);
+				ctx.fill();
+			}
+			ctx.globalAlpha = 1;
+		},
+	});
+}
+
+// --- Orbits -------------------------------------------------------------
+{
+	const planets = [
+		{ r: 60, size: 5, period: 4000, color: COLORS[2] },
+		{ r: 100, size: 8, period: 7000, color: COLORS[1] },
+		{ r: 145, size: 6, period: 11000, color: COLORS[3] },
+	];
+	anims.orbits = new AnimationCanvas('#orbits', {
+		draw({ ctx, width, height, time, animated }) {
+			ctx.clearRect(0, 0, width, height);
+			const cx = width / 2, cy = height / 2;
+			// A still frame uses a fixed time that spreads the planets out nicely.
+			const t = animated ? time : 2600;
+			ctx.strokeStyle = '#332e3d';
+			for (const p of planets) {
+				ctx.beginPath(); ctx.arc(cx, cy, p.r, 0, Math.PI * 2); ctx.stroke();
+			}
+			ctx.fillStyle = COLORS[0];
+			ctx.beginPath(); ctx.arc(cx, cy, 16, 0, Math.PI * 2); ctx.fill();
+			for (const p of planets) {
+				const a = (t / p.period) * Math.PI * 2;
+				ctx.fillStyle = p.color;
+				ctx.beginPath(); ctx.arc(cx + Math.cos(a) * p.r, cy + Math.sin(a) * p.r, p.size, 0, Math.PI * 2); ctx.fill();
+			}
+		},
+	});
+}
+
+// Play / pause buttons.
+document.querySelectorAll('[data-toggle]').forEach((btn) => {
+	const anim = anims[btn.dataset.toggle];
+	btn.addEventListener('click', () => {
+		anim.playing ? anim.pause() : anim.play();
+		btn.textContent = anim.playing ? 'Pause' : 'Play';
+	});
+});
+</script>
+</body>
+</html>

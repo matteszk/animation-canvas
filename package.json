@@ -1,0 +1,13 @@
+{
+  "name": "animation-canvas",
+  "version": "0.1.0",
+  "description": "A tiny, dependency-free helper for canvas animations: sizing, the frame loop, pausing off-screen, reduced motion, image preloading and pointer tracking.",
+  "type": "module",
+  "main": "src/animation-canvas.js",
+  "exports": "./src/animation-canvas.js",
+  "files": ["src"],
+  "keywords": ["canvas", "animation", "requestAnimationFrame", "reduced-motion"],
+  "author": "Matthew Szklarz (https://matthewszklarz.com)",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/matteszk/animation-canvas.git" }
+}
